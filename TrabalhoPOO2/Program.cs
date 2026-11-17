@@ -281,6 +281,13 @@ public class Inventario
         itens = new List<IItemInventario>();
         CapacidadeMaxima = capacidadeMaxima;
     }
+    public void AtualizarCapacidade(double novaCapacidade)
+    {
+        if (novaCapacidade <= 0)
+            throw new ArgumentException("Capacidade deve ser maior que zero");
+
+        CapacidadeMaxima = novaCapacidade;
+    }
     
     public bool AdicionarItem(IItemInventario item)
     {
@@ -679,11 +686,17 @@ public abstract class Personagem
         Nivel++;
         Experiencia -= ExperienciaProximoNivel;
         ExperienciaProximoNivel = CalcularExpProximoNivel();
-        
+
         Console.WriteLine($"\n🎉 {Nome} subiu para o nível {Nivel}!");
         Console.WriteLine("🎲 Role os dados para aumentar atributos...");
-        
-        // Aumentar atributos aleatoriamente (simulação de dados)
+
+        AumentarAtributosAleatoriamente();
+        Inventario.AtualizarCapacidade(CalcularCapacidadeInventario(Nivel));
+        RestaurarVidaEMana();
+    }
+
+    private void AumentarAtributosAleatoriamente()
+    {
         Random rand = new Random();
         Forca += rand.Next(1, 4);
         Destreza += rand.Next(1, 4);
@@ -691,14 +704,17 @@ public abstract class Personagem
         Inteligencia += rand.Next(1, 4);
         Sabedoria += rand.Next(1, 4);
         Carisma += rand.Next(1, 4);
-        
-        // Aumentar capacidade do inventário
-        Inventario = new Inventario(50 + (Nivel * 10));
-        
-        // Restaurar vida/mana
+    }
+
+    private static double CalcularCapacidadeInventario(int nivel)
+    {
+        return 50 + (nivel * 10);
+    }
+
+    private void RestaurarVidaEMana()
+    {
         VidaAtual = VidaMaxima = CalcularVidaMaxima();
         ManaAtual = ManaMaxima = CalcularManaMaxima();
-        
         AtualizarStatusPorEquipamento();
     }
     
@@ -1336,77 +1352,71 @@ public class Menu
         Console.WriteLine("2. 🛡️  Equipamento");
         Console.WriteLine("3. 🧪 Consumível");
         Console.WriteLine("4. 🎯 Munição");
-        Console.Write("Opção: ");
-        
-        int tipo = int.Parse(Console.ReadLine());
-        
-        Console.Write("Nome: ");
-        string nome = Console.ReadLine();
-        
-        Console.Write("Peso (kg): ");
-        double peso = double.Parse(Console.ReadLine());
-        
-        Console.Write("Valor: ");
-        decimal valor = decimal.Parse(Console.ReadLine());
-        
-        Console.Write("Raridade (Comum, Raro, Épico, Lendário): ");
-        string raridade = Console.ReadLine();
-        
-        IItemInventario item = null;
-        
+
+        int tipo = LerInteiro("Opção: ");
+        string nome = LerTexto("Nome: ");
+        double peso = double.Parse(LerTexto("Peso (kg): "));
+        decimal valor = decimal.Parse(LerTexto("Valor: "));
+        string raridade = LerTexto("Raridade (Comum, Raro, Épico, Lendário): ");
+
+        IItemInventario item = CriarItem(tipo, nome, peso, valor, raridade);
+
+        if (item != null && gerenciador.PersonagemAtual.Inventario.AdicionarItem(item))
+            Console.WriteLine("✅ Item adicionado com sucesso!");
+
+        Aguardar();
+    }
+
+    private string LerTexto(string pergunta)
+    {
+        Console.Write(pergunta);
+        return Console.ReadLine();
+    }
+
+    private int LerInteiro(string pergunta)
+    {
+        return int.Parse(LerTexto(pergunta));
+    }
+
+    private IItemInventario CriarItem(int tipo, string nome, double peso, decimal valor, string raridade)
+    {
         switch (tipo)
         {
-            case 1: // Arma
-                Console.Write("Tipo de dano: ");
-                string tipoDano = Console.ReadLine();
-                
-                Console.Write("Bônus de ataque: ");
-                int bonusAtaque = int.Parse(Console.ReadLine());
-                
-                Console.Write("Alcance: ");
-                int alcance = int.Parse(Console.ReadLine());
-                
-                item = new ItemArma(nome, peso, valor, tipoDano, bonusAtaque, alcance, raridade);
-                break;
-                
-            case 2: // Equipamento
-                Console.Write("Slot (Cabeça, Torso, Mãos, Pés): ");
-                string slot = Console.ReadLine();
-                
-                Console.Write("Bônus de defesa: ");
-                int bonusDefesa = int.Parse(Console.ReadLine());
-                
-                item = new ItemEquipamento(nome, peso, valor, slot, bonusDefesa, 0, raridade);
-                break;
-                
-            case 3: // Consumível
-                Console.Write("Efeito: ");
-                string efeito = Console.ReadLine();
-                
-                Console.Write("Cargas: ");
-                int cargas = int.Parse(Console.ReadLine());
-                
-                item = new ItemConsumivel(nome, peso, valor, efeito, cargas, raridade);
-                break;
-                
-            case 4: // Munição
-                Console.Write("Tipo: ");
-                string tipoMunicao = Console.ReadLine();
-                
-                Console.Write("Quantidade: ");
-                int quantidade = int.Parse(Console.ReadLine());
-                
-                item = new ItemMunicao(nome, peso, valor, quantidade, tipoMunicao, raridade);
-                break;
+            case 1: return CriarArma(nome, peso, valor, raridade);
+            case 2: return CriarEquipamento(nome, peso, valor, raridade);
+            case 3: return CriarConsumivel(nome, peso, valor, raridade);
+            case 4: return CriarMunicao(nome, peso, valor, raridade);
+            default: return null;
         }
-        
-        if (item != null)
-        {
-            if (gerenciador.PersonagemAtual.Inventario.AdicionarItem(item))
-                Console.WriteLine("✅ Item adicionado com sucesso!");
-        }
-        
-        Aguardar();
+    }
+
+    private ItemArma CriarArma(string nome, double peso, decimal valor, string raridade)
+    {
+        string tipoDano = LerTexto("Tipo de dano: ");
+        int bonusAtaque = LerInteiro("Bônus de ataque: ");
+        int alcance = LerInteiro("Alcance: ");
+        return new ItemArma(nome, peso, valor, tipoDano, bonusAtaque, alcance, raridade);
+    }
+
+    private ItemEquipamento CriarEquipamento(string nome, double peso, decimal valor, string raridade)
+    {
+        string slot = LerTexto("Slot (Cabeça, Torso, Mãos, Pés): ");
+        int bonusDefesa = LerInteiro("Bônus de defesa: ");
+        return new ItemEquipamento(nome, peso, valor, slot, bonusDefesa, 0, raridade);
+    }
+
+    private ItemConsumivel CriarConsumivel(string nome, double peso, decimal valor, string raridade)
+    {
+        string efeito = LerTexto("Efeito: ");
+        int cargas = LerInteiro("Cargas: ");
+        return new ItemConsumivel(nome, peso, valor, efeito, cargas, raridade);
+    }
+
+    private ItemMunicao CriarMunicao(string nome, double peso, decimal valor, string raridade)
+    {
+        string tipoMunicao = LerTexto("Tipo: ");
+        int quantidade = LerInteiro("Quantidade: ");
+        return new ItemMunicao(nome, peso, valor, quantidade, tipoMunicao, raridade);
     }
     
     private void RemoverItemInventario()
